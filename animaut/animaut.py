@@ -34,12 +34,10 @@ def scale_ratio_and_shift(graph):
     width = urx - llx
     height = ury - lly
 
-    # the scaling ratio
     ratio = min(mn.FRAME_WIDTH / width, mn.FRAME_HEIGHT / height)
-
     center = np.array([(urx + llx) * ratio / 2, (ury + lly) * ratio / 2, 0])
 
-    return ratio, -center
+    return ratio, mn.ORIGIN - center
 
 
 DEBUG_RENDERED_GRAPHS = 0
