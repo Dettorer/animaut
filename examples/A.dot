@@ -1,0 +1,41 @@
+digraph
+{
+  vcsn_context = "letterset<char_letters(ab)>, b"
+  rankdir = LR
+  edge [arrowhead = vee, arrowsize = .6]
+  {
+    node [shape = point, width = 0]
+    I0
+    F3
+    F4
+  }
+  {
+    node [
+        fontsize = 12,
+        fillcolor = cadetblue1,
+        shape = circle,
+        style = "filled,rounded",
+        height = 0.4,
+        width = 0.4,
+        fixedsize = true
+    ]
+    0 [label = "0", shape = box, fixedsize = false]
+    1 [label = "1", shape = box, fixedsize = false]
+    2 [label = "2", shape = box, fixedsize = false]
+    3 [label = "3", shape = box, fixedsize = false]
+    4 [label = "4", shape = box, fixedsize = false]
+  }
+  I0 -> 0
+  0 -> 1 [label = "a"]
+  0 -> 2 [label = "b"]
+  1 -> 1 [label = "a"]
+  1 -> 2 [label = "b"]
+  2 -> 2 [label = "a"]
+  2 -> 3 [label = "b"]
+  3 -> F3
+  3 -> 3 [label = "a"]
+  3 -> 4 [label = "b"]
+  4 -> F4
+  4 -> 3 [label = "a"]
+  4 -> 4 [label = "b"]
+}
