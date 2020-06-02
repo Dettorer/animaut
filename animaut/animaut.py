@@ -25,11 +25,11 @@ dot_to_manim_colors = {
 
 def scale_ratio_and_shift(graph):
     """
-    Compute the ratio and shift by wich we need to rescale and move the graph's
-    graphviz positions so that it fits in manim's scene.
+    Compute the ratio and shift by wich we need to rescale and move the graph's graphviz
+    positions so that it fits in manim's scene.
     """
-    # 'bb' is the graphviz bounding box with the lower-left (ll) and upper-right
-    # (ur) points
+    # 'bb' is the graphviz bounding box with the lower-left (ll) and upper-right (ur)
+    # points
     llx, lly, urx, ury = map(float, graph.graph_attr["bb"].split(","))
     width = urx - llx
     height = ury - lly
@@ -47,9 +47,9 @@ def dot_to_vgroup(source):
     """
     Generate a VGroup that manim can render to represent the dot graph
 
-    This uses the graphviz's dot engine to establish a layout of the nodes and
-    edges before creating manim's Circle (for the nodes) and VMobject (for the
-    edges) using the positions given by that layout
+    This uses the graphviz's dot engine to establish a layout of the nodes and edges
+    before creating manim's Circle (for the nodes) and VMobject (for the edges) using
+    the positions given by that layout
     """
     A = pgv.AGraph(source)
     A.layout(prog="dot")
@@ -62,13 +62,11 @@ def dot_to_vgroup(source):
 
     ratio, shift = scale_ratio_and_shift(A)
 
-    # spawn each node in manim using the graphviz positions and our rescaling
-    # ratio
+    # spawn each node in manim using the graphviz positions and our rescaling ratio
     mnodes = []
     for node in A.iternodes():
-        # 'point' shaped nodes aren't real nodes, they often represent the
-        # origin of the arrow of an initial stat or the destination of the
-        # arrow of a final state
+        # 'point' shaped nodes aren't real nodes, they often represent the origin of the
+        # arrow of an initial stat or the destination of the arrow of a final state
         if node.attr["shape"] == "point":
             continue
 
@@ -86,23 +84,23 @@ def dot_to_vgroup(source):
     # spawn each edges in a similar way
     medges = []
     for edge in A.edges():
-        # edge.attr['pos'] contains a list of spline control points of the
-        # form: 'e,x1,y1 x2,y2 x3,y3 x4,y4 […]'
+        # edge.attr['pos'] contains a list of spline control points of the form:
+        # 'e,x1,y1 x2,y2 x3,y3 x4,y4 […]'
         spline_points = [
             np.array([float(x) * ratio, float(y) * ratio, 0])
             for x, y in [point.split(",") for point in edge.attr["pos"][2:].split()]
         ]
-        # graphviz generates a path that loops when rendered by manim, we
-        # prevent that looping by removing the first control point
+        # graphviz generates a path that loops when rendered by manim, we prevent that
+        # looping by removing the first control point
         del spline_points[0]
 
         # Try to translate graphviz color to manim, fallback to white
         color = dot_to_manim_colors.get(edge.attr.get("color", "white"), mn.WHITE)
 
         # Render the edge's label and path
-        # TODO: we should use `.set_points_smoothly` but the spline control
-        # points given by graphviz aren't used properly by manim, the result is
-        # understandable but a bit chaotic
+        # TODO: we should use `.set_points_smoothly` but the spline control points given
+        # by graphviz aren't used properly by manim, the result is understandable but a
+        # bit chaotic
         mpath = mn.VMobject(color=color).set_points_as_corners(spline_points)
         if "label" in edge.attr and edge.attr["label"]:
             (labelx, labely) = map(float, edge.attr["lp"].split(","))
