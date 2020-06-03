@@ -1,8 +1,11 @@
 import manimlib.imports as mn
+import math
 import numpy as np
 import pathlib
 import pygraphviz as pgv
+from dataclasses import dataclass
 from pylatex.utils import escape_latex
+from typing import List
 
 
 class ANode(mn.Circle):
@@ -38,6 +41,56 @@ def scale_ratio_and_shift(graph):
     center = np.array([(urx + llx) * ratio / 2, (ury + lly) * ratio / 2, 0])
 
     return ratio, mn.ORIGIN - center
+
+
+@dataclass
+class Spline:
+    # if present: there's an arrow head that goes from the first control point to
+    # start_point
+    start_point: np.array
+    # if present: there's an arrow head that goes from the last control point to
+    # end_point
+    end_point: np.array
+    # points through wich the curve must go
+    anchor_points: List[np.array]
+    # points that control the curvature of the curve
+    handle_points: List[np.array]
+
+
+def parse_graphviz_bspline(spline_str, ratio):
+    """See https://www.graphviz.org/doc/info/attrs.html#k:splineType"""
+
+    def parse_point(point):
+        x, y = point.split(",")
+        return np.array([float(x) * ratio, float(y) * ratio, 0])
+
+    spline = Spline(None, None, [], [])
+
+    points_str = spline_str.split()
+    if points_str[0].startswith("s,"):
+        # we have a start point
+        spline.start_point = parse_point(points_str.pop(0)[2:])
+    if points_str[0].startswith("e,"):
+        # we have an end point
+        spline.end_point = parse_point(points_str.pop(0)[2:])
+
+    for i in range(0, len(points_str) - 1, 3):
+        spline.anchor_points.append(parse_point(points_str[0]))
+        spline.handle_points.append(parse_point(points_str[1]))
+        spline.handle_points.append(parse_point(points_str[2]))
+        spline.anchor_points.append(parse_point(points_str[3]))
+
+    return spline
+
+
+def segment_to_arrow(src: np.array, dst: np.array) -> mn.ArrowTip:
+    """Create an ArrowTip that points from `src` to `dst`"""
+    # TODO: it's not always really in the right direction, find out why
+    delta_x = dst[0] - src[0]
+    delta_y = dst[1] - src[1]
+    angle = math.atan2(delta_y, delta_x) * 180 / math.pi
+    angle *= mn.DEGREES
+    return mn.ArrowTip(start_angle=angle, color=mn.WHITE).move_to(dst)
 
 
 DEBUG_RENDERED_GRAPHS = 0
@@ -84,32 +137,45 @@ def dot_to_vgroup(source):
     # spawn each edges in a similar way
     medges = []
     for edge in A.edges():
-        # edge.attr['pos'] contains a list of spline control points of the form:
-        # 'e,x1,y1 x2,y2 x3,y3 x4,y4 […]'
-        spline_points = [
-            np.array([float(x) * ratio, float(y) * ratio, 0])
-            for x, y in [point.split(",") for point in edge.attr["pos"][2:].split()]
-        ]
-        # graphviz generates a path that loops when rendered by manim, we prevent that
-        # looping by removing the first control point
-        del spline_points[0]
+        objects = []  # manim objects representing the edge
+
+        spline = parse_graphviz_bspline(edge.attr["pos"], ratio)
 
         # Try to translate graphviz color to manim, fallback to white
         color = dot_to_manim_colors.get(edge.attr.get("color", "white"), mn.WHITE)
 
-        # Render the edge's label and path
-        # TODO: we should use `.set_points_smoothly` but the spline control points given
-        # by graphviz aren't used properly by manim, the result is understandable but a
-        # bit chaotic
-        mpath = mn.VMobject(color=color).set_points_as_corners(spline_points)
+        # Render the edge's path using graphviz's control points
+        mpath = mn.VMobject(color=color)
+        if spline.start_point is not None:
+            mpath.add_smooth_curve_to(spline.start_point)
+        for i in range(0, len(spline.anchor_points), 2):
+            mpath.add_cubic_bezier_curve(
+                spline.anchor_points[i],
+                spline.handle_points[i],
+                spline.handle_points[i + 1],
+                spline.anchor_points[i + 1],
+            )
+        if spline.end_point is not None:
+            # TODO: this seems to be missing a handle point, the result is a bit jagged
+            mpath.add_smooth_curve_to(spline.end_point)
+
+        # Render the arrow heads, if any
+        if spline.start_point is not None:
+            objects.append(
+                segment_to_arrow(spline.anchor_points[0], spline.start_point)
+            )
+        if spline.end_point is not None:
+            objects.append(segment_to_arrow(spline.anchor_points[-1], spline.end_point))
+
+        objects.append(mpath)
         if "label" in edge.attr and edge.attr["label"]:
             (labelx, labely) = map(float, edge.attr["lp"].split(","))
             mlabel = mn.TextMobject(escape_latex(edge.attr["label"]))
             mlabel.scale(0.65)
             mlabel.move_to(np.array([labelx * ratio, labely * ratio, 0]))
-            medges.append(mn.VGroup(mpath, mlabel))
-        else:
-            medges.append(mpath)
+            objects.append(mlabel)
+
+        medges.append(mn.VGroup(*objects))
 
     # Finally assemble into a VGroup and shift it to the center of scene
     return mn.VGroup(*mnodes, *medges).shift(shift)
